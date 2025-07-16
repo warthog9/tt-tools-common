@@ -1,3 +1,13 @@
+tt-tools-common (0.0.2) noble; urgency=medium
+
+  [ John 'Warthog9' Hawley ]
+  * backing out the dynamic url bit
+
+  [ Tenstorrent Releases ]
+  * pyproject.toml- updating version to 0.0.2
+
+ -- Tenstorrent Releases <releases@tenstorrent.com>  Wed, 16 Jul 2025 20:56:09 +0000
+
 tt-tools-common (0.0.0-1) stable; urgency=medium
 
   [ John 'Warthog9' Hawley ]
