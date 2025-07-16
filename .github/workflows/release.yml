@@ -403,7 +403,7 @@ jobs:
 
     environment:
       name: pypi-release
-      url: https://test.pypi.org/p/${{ needs.versionchange.outputs.package_name }}
+      url: https://test.pypi.org/p/${{ needs.versionchange.outputs.package_name }}-temp
 
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
