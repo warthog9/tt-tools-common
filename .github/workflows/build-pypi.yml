@@ -1,0 +1,55 @@
+name: Build 🐍 📦 wheels
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        default: ${{ github.ref }}
+        required: false
+        type: string
+
+jobs:
+  # Build non-abi3 wheels for Python 3.8-3.10
+  build-py-version-specific:
+    name: Build version-specific wheels 📦
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+        fetch-tags: true
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install pypa/build
+      run: >-
+        python3 -m
+        pip install
+        build
+        --user
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Build release distributions
+      run: |
+        python -m pip install build
+        python -m build
+
+    - name: Store the wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-py${{ matrix.python-version }}
+        path: dist
+

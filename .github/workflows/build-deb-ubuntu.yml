@@ -1,0 +1,140 @@
+name: Build Release debian package - Ubuntu
+run-name: Build Release debian package - Ubuntu
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        default: ${{ github.ref }}
+        required: false
+        type: string
+      MAJOR:
+        required: false
+        type: string
+      MINOR:
+        required: false
+        type: string
+      PATCH:
+        required: false
+        type: string
+      NUMBER_OF_COMMITS_SINCE_TAG:
+        required: false
+        type: string
+
+jobs:
+  builddeb:
+    name: Build Release debian package - Ubuntu
+    strategy:
+      matrix:
+        os: [ "ubuntu-22.04", "ubuntu-24.04", "ubuntu-latest" ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: sudo apt update
+      - run: |
+          sudo apt install -y \
+            build-essential \
+            debhelper \
+            dh-python \
+            dh-sequence-python3 \
+            git-buildpackage \
+            gnupg \
+            libpython3-all-dev \
+            pybuild-plugin-pyproject \
+            python3-all \
+            python3-pip
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.PKG_SIGNING_KEY_DEB }}
+      - run: gpg --list-keys
+      - run: gpg --list-secret-keys
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-tags: true
+          fetch-depth: 0
+      - name: Extract version from tag
+        uses: damienaicheh/extract-version-from-tag-action@v1.3.0
+      - run: git tag
+      - name: Ok Figure out version
+        run: |
+          if [[ -n "${{ inputs.MAJOR }}" ]]
+          then
+            echo "MAJOR=${{ inputs.MAJOR }}" >> $GITHUB_ENV
+            echo "MAJOR=${{ inputs.MAJOR }}"
+          fi
+
+          if [[ -n "${{ inputs.MINOR }}" ]]
+          then
+            echo "MINOR=${{ inputs.MINOR }}" >> $GITHUB_ENV
+            echo "MINOR=${{ inputs.MINOR }}"
+          fi
+
+          if [[ -n "${{ inputs.PATCH }}" ]]
+          then
+            echo "PATCH=${{ inputs.PATCH }}" >> $GITHUB_ENV
+            echo "PATCH=${{ inputs.PATCH }}"
+          fi
+
+          if [[ -n "${{ inputs.MAJOR }}" ]]
+          then
+            echo "NUMBER_OF_COMMITS_SINCE_TAG=${{ inputs.NUMBER_OF_COMMITS_SINCE_TAG }}" >> $GITHUB_ENV
+            echo "NUMBER_OF_COMMITS_SINCE_TAG=${{ inputs.NUMBER_OF_COMMITS_SINCE_TAG }}"
+          fi
+
+          if [[ -n "${{ inputs.ref }}" ]]
+          then
+            echo "REF=${{ inputs.ref }}" >> $GITHUB_ENV
+            echo "REF=${{ inputs.ref }}"
+          else
+            echo "REF=${{ github.ref_name }}" >> $GITHUB_ENV
+            echo "REF=${{ github.ref_name }}"
+          fi
+      # Ok this needs to get up leveled somewhere so that it can be shared across Debian and Ubuntu obviously
+      - run: ls -lah
+      - run: |
+          gbp dch \
+            --debian-branch ${REF} \
+            -R \
+            -N ${MAJOR}.${MINOR}.${PATCH} \
+            --spawn-editor=never
+        env:
+          EMAIL: releases@tenstorrent.com
+          NAME: Tenstorrent Releases
+      - run: |
+          gbp buildpackage \
+            --git-ignore-new
+        continue-on-error: true
+      - name: Move Debian packages
+        run: mkdir -p artifacts && mv ../*.deb artifacts/
+      - name: Copy Changelog to artifacts
+        run: cp debian/changelog artifacts/changelog
+      - name: Set environment variable for distro 
+        id: distro_ident
+        run: |
+          source /etc/os-release && \
+          #echo "DISTRO_IDENT=$( echo \"${NAME}\" | sed 's/"//g' | tr '[:upper:]' '[:lower:]' )-${VERSION_ID}" \
+          #      >> $GITHUB_ENV
+          echo "DISTRO_IDENT=${{ matrix.os }}" >> $GITHUB_ENV
+      - name: Set environment variable for deb filename
+        id: deb_filename
+        run: echo "DEB_FILENAME=$(basename artifacts/*.deb)" >> $GITHUB_ENV
+      - name: Set environment variable for deb filename
+        id: deb_filename_distro
+        run: echo DEB_FILENAME_DISTRO=$(basename artifacts/*.deb | sed "s/_all/_all-${{ env.DISTRO_IDENT }}/" ) >> $GITHUB_ENV
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.DEB_FILENAME_DISTRO }}
+          path: artifacts/${{ env.DEB_FILENAME }}
+      - name: Upload Changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-changelog-${{ env.DISTRO_IDENT }}
+          path: debian/changelog
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ env.DISTRO_IDENT }}.zip
+          path: artifacts/
+
